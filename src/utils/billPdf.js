@@ -2,8 +2,7 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
 const SHOP_NAME = "Anjum Pharmacy";
-const SHOP_INFO =
-  "0301-4626425,0300-1626425,0301-4472425, Sarai Mughal";
+const SHOP_INFO = "0301-4626425,0300-1626425,0301-4472425, Sarai Mughal";
 
 const money = (n) => Number(n).toLocaleString("en-US");
 
