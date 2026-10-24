@@ -138,7 +138,7 @@ export default function App() {
       <main className="flex w-2/3 flex-col gap-4 p-6">
         <header className="flex items-center gap-2">
           <Pill className="text-emerald-700" size={26} />
-          <h1 className="text-2xl font-semibold">MediPOS</h1>
+          <h1 className="text-2xl font-semibold">Anjum Clinic</h1>
         </header>
 
         <div className="relative">
