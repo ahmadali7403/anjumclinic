@@ -6,7 +6,6 @@ const SHOP_INFO = "0300-1626425, Sindhi Mor Saray Mughal";
 
 const money = (n) => Number(n).toLocaleString("en-US");
 
-// File name: CustomerName_2026-10-24_14-30.pdf (naam na ho to Bill_...)
 function makeFileName(customerName, date) {
   const pad = (n) => String(n).padStart(2, "0");
   const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -21,7 +20,6 @@ function makeFileName(customerName, date) {
   return `${safeName}_${day}_${time}.pdf`;
 }
 
-// 0300-1234567 ya 03001234567 ko 923001234567 banata hai (WhatsApp ke liye)
 function normalizePhone(phone = "") {
   let d = phone.replace(/\D/g, "");
   if (d.startsWith("00")) d = d.slice(2);
@@ -29,14 +27,19 @@ function normalizePhone(phone = "") {
   return d;
 }
 
-// totals = { subtotal, discountAmount, total, percent }
 function discountLabel(totals) {
   return totals.percent ? `Discount (${totals.percent}%)` : "Discount";
 }
 
-// a4Half = true  -> A4 portrait, bill sirf left half mein (print ke liye)
-// a4Half = false -> A5 portrait (PDF download / share ke liye)
-function buildBillPdf(bill, totals, customer = {}, { a4Half = false } = {}) {
+// meta = { billNo, date } -> history se dobara print karte waqt purana number aur date use hota hai
+// a4Half = true  -> A4 portrait, bill sirf left half mein (print)
+// a4Half = false -> A5 portrait (PDF download / share)
+function buildBillPdf(
+  bill,
+  totals,
+  customer = {},
+  { a4Half = false, billNo: givenBillNo, date } = {},
+) {
   const doc = a4Half
     ? new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" })
     : new jsPDF({ unit: "mm", format: "a5", orientation: "portrait" });
@@ -47,8 +50,8 @@ function buildBillPdf(bill, totals, customer = {}, { a4Half = false } = {}) {
   const narrow = a4Half;
   const margin = narrow ? 6 : 10;
 
-  const now = new Date();
-  const billNo = `B-${now.getTime().toString().slice(-6)}`;
+  const now = date ? new Date(date) : new Date();
+  const billNo = givenBillNo || `B-${now.getTime().toString().slice(-6)}`;
   const name = (customer.name || "").trim();
   const phone = (customer.phone || "").trim();
   const fileName = makeFileName(name, now);
@@ -154,7 +157,6 @@ function buildBillPdf(bill, totals, customer = {}, { a4Half = false } = {}) {
       fontSize: narrow ? 9 : 10,
     },
     alternateRowStyles: { fillColor: [250, 250, 249] },
-    // Medicine left, baaqi sab columns center
     columnStyles: {
       0: { cellWidth: colWidths.n, halign: "center" },
       1: { cellWidth: "auto", halign: "left" },
@@ -188,20 +190,23 @@ function buildBillPdf(bill, totals, customer = {}, { a4Half = false } = {}) {
   return { doc, fileName };
 }
 
-export function downloadBill(bill, totals, customer) {
-  const { doc, fileName } = buildBillPdf(bill, totals, customer);
+export function downloadBill(bill, totals, customer, meta = {}) {
+  const { doc, fileName } = buildBillPdf(bill, totals, customer, meta);
   doc.save(fileName);
 }
 
 // Print: A4 portrait, bill left half mein
-export function printBill(bill, totals, customer) {
-  const { doc } = buildBillPdf(bill, totals, customer, { a4Half: true });
+export function printBill(bill, totals, customer, meta = {}) {
+  const { doc } = buildBillPdf(bill, totals, customer, {
+    ...meta,
+    a4Half: true,
+  });
   doc.autoPrint();
   window.open(doc.output("bloburl"), "_blank");
 }
 
-export async function shareBill(bill, totals, customer) {
-  const { doc, fileName } = buildBillPdf(bill, totals, customer);
+export async function shareBill(bill, totals, customer, meta = {}) {
+  const { doc, fileName } = buildBillPdf(bill, totals, customer, meta);
   const file = new File([doc.output("blob")], fileName, {
     type: "application/pdf",
   });
@@ -216,11 +221,12 @@ export async function shareBill(bill, totals, customer) {
   }
 }
 
-export function billText(bill, totals, customer = {}) {
+export function billText(bill, totals, customer = {}, meta = {}) {
   const lines = bill.map(
     (i) => `${i.name} x${i.qty} = Rs ${money(i.qty * i.price)}`,
   );
-  const who = [
+  const head = [
+    meta.billNo && `Bill No: ${meta.billNo}`,
     customer.name && `Customer: ${customer.name}`,
     customer.phone && `Phone: ${customer.phone}`,
   ]
@@ -232,9 +238,10 @@ export function billText(bill, totals, customer = {}) {
           totals.discountAmount,
         )}\n`
       : "";
-  return `${SHOP_NAME}\n${new Date().toLocaleString()}\n${
-    who ? who + "\n" : ""
-  }\n${lines.join("\n")}\n\n${sums}Total: Rs ${money(totals.total)}`;
+  const when = (meta.date ? new Date(meta.date) : new Date()).toLocaleString();
+  return `${SHOP_NAME}\n${when}\n${head ? head + "\n" : ""}\n${lines.join(
+    "\n",
+  )}\n\n${sums}Total: Rs ${money(totals.total)}`;
 }
 
 export function canShareFile() {
@@ -249,10 +256,10 @@ export function canShareFile() {
   }
 }
 
-export function shareWhatsApp(bill, totals, customer = {}) {
-  downloadBill(bill, totals, customer);
+export function shareWhatsApp(bill, totals, customer = {}, meta = {}) {
+  downloadBill(bill, totals, customer, meta);
   const number = normalizePhone(customer.phone);
-  const text = encodeURIComponent(billText(bill, totals, customer));
+  const text = encodeURIComponent(billText(bill, totals, customer, meta));
   window.open(
     number
       ? `https://wa.me/${number}?text=${text}`
@@ -261,13 +268,13 @@ export function shareWhatsApp(bill, totals, customer = {}) {
   );
 }
 
-export function shareEmail(bill, totals, customer = {}) {
-  downloadBill(bill, totals, customer);
+export function shareEmail(bill, totals, customer = {}, meta = {}) {
+  downloadBill(bill, totals, customer, meta);
   window.location.href = `mailto:?subject=${encodeURIComponent(
     "Clinic bill",
-  )}&body=${encodeURIComponent(billText(bill, totals, customer))}`;
+  )}&body=${encodeURIComponent(billText(bill, totals, customer, meta))}`;
 }
 
-export function copyBillText(bill, totals, customer = {}) {
-  return navigator.clipboard.writeText(billText(bill, totals, customer));
+export function copyBillText(bill, totals, customer = {}, meta = {}) {
+  return navigator.clipboard.writeText(billText(bill, totals, customer, meta));
 }
