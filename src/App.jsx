@@ -349,7 +349,7 @@ export default function App() {
         <header className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Pill className="text-emerald-700" size={26} />
-            <h1 className="text-2xl font-semibold">MediPOS</h1>
+            <h1 className="text-2xl font-semibold">Anjum Clinic</h1>
           </div>
           <nav className="flex gap-1">
             {tabs.map(({ id, label, icon: Icon }) => (

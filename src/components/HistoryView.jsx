@@ -6,10 +6,27 @@ import {
   Trash2,
   ChevronDown,
   ChevronRight,
+  Share2,
+  MessageCircle,
+  Mail,
+  Copy,
+  FileUp,
+  Check,
 } from "lucide-react";
+import {
+  shareWhatsApp,
+  shareEmail,
+  copyBillText,
+  shareBill,
+  canShareFile,
+} from "../utils/billPdf";
 
 const money = (n) => Number(n).toLocaleString("en-US");
 const SHOW_LIMIT = 100;
+
+const iconBtn = "rounded-md border border-stone-300 p-2 hover:bg-stone-100";
+const shareBtn =
+  "flex items-center gap-1.5 rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm hover:bg-stone-100";
 
 function Stat({ label, value }) {
   return (
@@ -22,7 +39,9 @@ function Stat({ label, value }) {
 
 export default function HistoryView({ sales, onPrint, onPdf, onDelete }) {
   const [q, setQ] = useState("");
-  const [openId, setOpenId] = useState(null);
+  const [openId, setOpenId] = useState(null); // items dikhane wali row
+  const [shareId, setShareId] = useState(null); // share bar wali row
+  const [copiedId, setCopiedId] = useState(null);
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -45,6 +64,47 @@ export default function HistoryView({ sales, onPrint, onPdf, onDelete }) {
     (s) => new Date(s.date).toDateString() === todayKey,
   );
   const todayTotal = todaySales.reduce((sum, s) => sum + s.totals.total, 0);
+
+  const metaOf = (s) => ({ billNo: s.billNo, date: s.date });
+
+  const shareActions = (s) => [
+    {
+      label: "WhatsApp",
+      icon: MessageCircle,
+      run: () => shareWhatsApp(s.items, s.totals, s.customer, metaOf(s)),
+    },
+    {
+      label: "Email",
+      icon: Mail,
+      run: () => shareEmail(s.items, s.totals, s.customer, metaOf(s)),
+    },
+    {
+      label: "Copy bill text",
+      icon: Copy,
+      keepOpen: true,
+      run: async () => {
+        try {
+          await copyBillText(s.items, s.totals, s.customer, metaOf(s));
+          setCopiedId(s.id);
+          setTimeout(
+            () => setCopiedId((id) => (id === s.id ? null : id)),
+            1500,
+          );
+        } catch {
+          /* clipboard block ho sakta hai */
+        }
+      },
+    },
+    ...(canShareFile()
+      ? [
+          {
+            label: "Share PDF file",
+            icon: FileUp,
+            run: () => shareBill(s.items, s.totals, s.customer, metaOf(s)),
+          },
+        ]
+      : []),
+  ];
 
   return (
     <>
@@ -78,10 +138,12 @@ export default function HistoryView({ sales, onPrint, onPdf, onDelete }) {
           <ul className="divide-y divide-stone-200">
             {filtered.slice(0, SHOW_LIMIT).map((s) => {
               const open = openId === s.id;
+              const sharing = shareId === s.id;
               const who =
                 [s.customer?.name, s.customer?.phone]
                   .filter(Boolean)
                   .join(" - ") || "Walk-in";
+
               return (
                 <li key={s.id} className="px-4 py-3">
                   <div className="flex items-center gap-3">
@@ -97,7 +159,7 @@ export default function HistoryView({ sales, onPrint, onPdf, onDelete }) {
                       )}
                     </button>
 
-                    <div className="flex-1">
+                    <div className="min-w-0 flex-1">
                       <p className="font-medium">
                         {s.billNo}
                         <span className="ml-2 font-normal text-stone-500">
@@ -119,26 +181,64 @@ export default function HistoryView({ sales, onPrint, onPdf, onDelete }) {
                     <button
                       onClick={() => onPrint(s)}
                       aria-label="Print bill"
-                      className="rounded-md border border-stone-300 p-2 hover:bg-stone-100"
+                      className={iconBtn}
                     >
                       <Printer size={16} />
                     </button>
                     <button
                       onClick={() => onPdf(s)}
                       aria-label="Download PDF"
-                      className="rounded-md border border-stone-300 p-2 hover:bg-stone-100"
+                      className={iconBtn}
                     >
                       <Download size={16} />
                     </button>
                     <button
+                      onClick={() => setShareId(sharing ? null : s.id)}
+                      aria-label="Share bill"
+                      aria-expanded={sharing}
+                      className={`${iconBtn} ${sharing ? "bg-emerald-50 text-emerald-700" : ""}`}
+                    >
+                      <Share2 size={16} />
+                    </button>
+                    <button
                       onClick={() => onDelete(s)}
                       aria-label="Delete bill"
-                      className="rounded-md border border-stone-300 p-2 text-red-600 hover:bg-red-50"
+                      className={`${iconBtn} text-red-600 hover:bg-red-50`}
                     >
                       <Trash2 size={16} />
                     </button>
                   </div>
 
+                  {/* Share bar */}
+                  {sharing && (
+                    <div className="ml-8 mt-3 flex flex-wrap gap-2">
+                      {shareActions(s).map(
+                        ({ label, icon: Icon, run, keepOpen }) => (
+                          <button
+                            key={label}
+                            onClick={() => {
+                              run();
+                              if (!keepOpen) setShareId(null);
+                            }}
+                            className={shareBtn}
+                          >
+                            {label === "Copy bill text" && copiedId === s.id ? (
+                              <>
+                                <Check size={16} className="text-emerald-700" />{" "}
+                                Copied
+                              </>
+                            ) : (
+                              <>
+                                <Icon size={16} /> {label}
+                              </>
+                            )}
+                          </button>
+                        ),
+                      )}
+                    </div>
+                  )}
+
+                  {/* Items */}
                   {open && (
                     <div className="ml-8 mt-3 rounded-md bg-stone-50 p-3 text-sm">
                       <ul className="space-y-1">
