@@ -18,6 +18,7 @@ import {
   ShoppingCart,
   History,
   Database,
+  Package,
 } from "lucide-react";
 import {
   downloadBill,
@@ -30,16 +31,17 @@ import {
 } from "./utils/billPdf";
 import { usePersistentState, formatBillNo } from "./utils/storage";
 import HistoryView from "./components/HistoryView";
+import StockView from "./components/StockView";
 import DataView from "./components/DataView";
 
 // Pehli dafa app chalane par ye sample data dikhta hai. Excel import ke baad replace ho jata hai.
 const SAMPLE_MEDICINES = [
-  { id: 1, name: "Panadol 500mg", company: "GSK", price: 25, stock: null },
-  { id: 2, name: "Brufen 400mg", company: "Abbott", price: 40, stock: null },
-  { id: 3, name: "Augmentin 625mg", company: "GSK", price: 380, stock: null },
-  { id: 4, name: "Risek 20mg", company: "Getz", price: 210, stock: null },
+  { id: 1, name: "Panadol 500mg", company: "GSK", price: 25, stock: 100 },
+  { id: 2, name: "Brufen 400mg", company: "Abbott", price: 40, stock: 60 },
+  { id: 3, name: "Augmentin 625mg", company: "GSK", price: 380, stock: 8 },
+  { id: 4, name: "Risek 20mg", company: "Getz", price: 210, stock: 0 },
   { id: 5, name: "Disprin", company: "Reckitt", price: 12, stock: null },
-  { id: 6, name: "Arinac Forte", company: "Abbott", price: 55, stock: null },
+  { id: 6, name: "Arinac Forte", company: "Abbott", price: 55, stock: 40 },
 ];
 
 const LOW_STOCK = 10;
@@ -80,7 +82,7 @@ export default function App() {
   );
 
   // ---- UI state ----
-  const [view, setView] = useState("pos"); // "pos" | "history" | "data"
+  const [view, setView] = useState("pos"); // "pos" | "stock" | "history" | "data"
   const [query, setQuery] = useState("");
   const [qtyMap, setQtyMap] = useState({});
   const [shareOpen, setShareOpen] = useState(false);
@@ -181,6 +183,18 @@ export default function App() {
     setShareOpen(false);
   };
 
+  // ---- Stock tab se stock badalna (null = track nahi hoga) ----
+  const updateStock = (med, stock) => {
+    setMedicines((prev) =>
+      prev.map((m) => (m.id === med.id ? { ...m, stock } : m)),
+    );
+    notify(
+      stock == null
+        ? `${med.name}: stock tracking band`
+        : `${med.name}: stock ${stock} kar diya`,
+    );
+  };
+
   // ---- Totals ----
   const subtotal = bill.reduce((sum, i) => sum + i.price * i.qty, 0);
   const discountValue = Number(discount.value) || 0;
@@ -272,6 +286,9 @@ export default function App() {
       if (e.key === "F2") {
         e.preventDefault();
         focusSearch();
+      } else if (e.key === "F3") {
+        e.preventDefault();
+        setView("stock");
       } else if (e.key === "F4") {
         e.preventDefault();
         setView("history");
@@ -326,6 +343,7 @@ export default function App() {
 
   const tabs = [
     { id: "pos", label: "Billing (F2)", icon: ShoppingCart },
+    { id: "stock", label: "Stock (F3)", icon: Package },
     { id: "history", label: "History (F4)", icon: History },
     { id: "data", label: "Data", icon: Database },
   ];
@@ -349,7 +367,7 @@ export default function App() {
         <header className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Pill className="text-emerald-700" size={26} />
-            <h1 className="text-2xl font-semibold">Anjum Pharmacy</h1>
+            <h1 className="text-2xl font-semibold">MediPOS</h1>
           </div>
           <nav className="flex gap-1">
             {tabs.map(({ id, label, icon: Icon }) => (
@@ -400,10 +418,10 @@ export default function App() {
                 <ul className="divide-y divide-stone-200">
                   {results.slice(0, SHOW_LIMIT).map((med) => {
                     const tracked = med.stock != null;
-                    const remaining = tracked
-                      ? med.stock - billQtyOf(med)
-                      : Infinity;
+                    const inBill = billQtyOf(med);
+                    const remaining = tracked ? med.stock - inBill : Infinity;
                     const soldOut = tracked && remaining <= 0;
+                    const low = tracked && !soldOut && remaining <= LOW_STOCK;
                     return (
                       <li
                         key={med.id}
@@ -413,19 +431,27 @@ export default function App() {
                           <p className="font-medium">{med.name}</p>
                           <p className="text-sm text-stone-500">
                             {med.company}
-                            {tracked && (
-                              <span
-                                className={`ml-3 ${
-                                  soldOut
-                                    ? "font-medium text-red-600"
-                                    : remaining <= LOW_STOCK
-                                      ? "font-medium text-amber-600"
-                                      : ""
-                                }`}
-                              >
-                                {soldOut
-                                  ? "Out of stock"
-                                  : `Stock: ${remaining}`}
+                          </p>
+                          {/* Stock: har medicine ke neeche */}
+                          <p
+                            className={`text-sm ${
+                              soldOut
+                                ? "font-medium text-red-600"
+                                : low
+                                  ? "font-medium text-amber-600"
+                                  : tracked
+                                    ? "text-emerald-700"
+                                    : "text-stone-400"
+                            }`}
+                          >
+                            {!tracked
+                              ? "Stock: not tracked"
+                              : soldOut
+                                ? "Out of stock"
+                                : `Stock: ${remaining}`}
+                            {tracked && inBill > 0 && (
+                              <span className="ml-2 font-normal text-stone-500">
+                                ({inBill} in bill)
                               </span>
                             )}
                           </p>
@@ -468,10 +494,18 @@ export default function App() {
             </div>
 
             <p className="text-xs text-stone-500">
-              F2 Search &nbsp; F4 History &nbsp; F9 Complete sale &nbsp; Ctrl+P
-              Print &nbsp; Esc Clear search
+              F2 Search &nbsp; F3 Stock &nbsp; F4 History &nbsp; F9 Complete
+              sale &nbsp; Ctrl+P Print &nbsp; Esc Clear search
             </p>
           </>
+        )}
+
+        {view === "stock" && (
+          <StockView
+            medicines={medicines}
+            lowStock={LOW_STOCK}
+            onUpdateStock={updateStock}
+          />
         )}
 
         {view === "history" && (
