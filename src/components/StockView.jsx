@@ -1,5 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
-import { Search, AlertTriangle, PackageX, Boxes } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import {
+  Search,
+  AlertTriangle,
+  PackageX,
+  Boxes,
+  PackagePlus,
+  Plus,
+  X,
+} from "lucide-react";
 
 const money = (n) => Number(n).toLocaleString("en-US");
 const SHOW_LIMIT = 200;
@@ -14,11 +22,15 @@ const statusOf = (m, lowStock) =>
         : "ok";
 
 const BADGE = {
-  ok: { text: "In stock", cls: "bg-emerald-50 text-emerald-700" },
-  low: { text: "Low stock", cls: "bg-amber-50 text-amber-700" },
-  out: { text: "Out of stock", cls: "bg-red-50 text-red-700" },
+  ok: { text: "In", cls: "bg-emerald-50 text-emerald-700" },
+  low: { text: "Low", cls: "bg-amber-50 text-amber-700" },
+  out: { text: "Out", cls: "bg-red-50 text-red-700" },
   untracked: { text: "Not tracked", cls: "bg-stone-100 text-stone-500" },
 };
+
+const fieldCls =
+  "w-full rounded-md border border-stone-300 px-3 py-2 text-sm outline-none focus:border-emerald-600";
+const EMPTY_FORM = { name: "", company: "", price: "", formula: "", stock: "" };
 
 function Stat({ label, value, icon: Icon, tone = "text-stone-900" }) {
   return (
@@ -31,47 +43,154 @@ function Stat({ label, value, icon: Icon, tone = "text-stone-900" }) {
   );
 }
 
-// Type karke Enter ya bahar click karne par save hota hai. Khali chhorne par stock track nahi hota.
-function StockInput({ value, onCommit }) {
-  const [text, setText] = useState(value == null ? "" : String(value));
+// Nayi medicine ka form. Add hone ke baad form khula rehta hai taake agli medicine bhi likh sakein.
+function NewMedicineForm({ onAdd, onClose }) {
+  const [f, setF] = useState(EMPTY_FORM);
+  const nameRef = useRef(null);
 
-  useEffect(() => {
-    setText(value == null ? "" : String(value));
-  }, [value]);
+  const set = (key) => (e) => setF((p) => ({ ...p, [key]: e.target.value }));
+  const priceNum = Number(f.price);
+  const valid =
+    f.name.trim() !== "" &&
+    f.price !== "" &&
+    Number.isFinite(priceNum) &&
+    priceNum >= 0;
 
-  const commit = () => {
-    const t = text.trim();
-    if (t === "") {
-      if (value != null) onCommit(null);
-      return;
+  const submit = (e) => {
+    e.preventDefault();
+    if (!valid) return;
+    const stockNum =
+      f.stock.trim() === "" ? null : Math.max(0, Math.round(Number(f.stock)));
+    const ok = onAdd({
+      name: f.name.trim(),
+      company: f.company.trim(),
+      price: priceNum,
+      formula: f.formula.trim(),
+      stock: Number.isFinite(stockNum) ? stockNum : null,
+    });
+    if (ok) {
+      setF(EMPTY_FORM);
+      nameRef.current?.focus();
     }
-    const n = Math.max(0, Math.round(Number(t)));
-    if (!Number.isFinite(n)) {
-      setText(value == null ? "" : String(value));
-      return;
-    }
-    if (n !== value) onCommit(n);
-    setText(String(n));
   };
 
   return (
-    <input
-      type="number"
-      min="0"
-      value={text}
-      placeholder="Not tracked"
-      onChange={(e) => setText(e.target.value)}
-      onFocus={(e) => e.target.select()}
-      onBlur={commit}
-      onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-      className="w-28 rounded-md border border-stone-300 px-2 py-1.5 text-center outline-none focus:border-emerald-600"
-    />
+    <form
+      onSubmit={submit}
+      className="rounded-lg border border-emerald-300 bg-emerald-50/50 p-4"
+    >
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="font-semibold">New medicine</h3>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close form"
+          className="text-stone-500 hover:text-stone-800"
+        >
+          <X size={18} />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-6 gap-2">
+        <input
+          ref={nameRef}
+          autoFocus
+          value={f.name}
+          onChange={set("name")}
+          placeholder="Name (strength ke saath) *"
+          className={`${fieldCls} col-span-2`}
+        />
+        <input
+          value={f.company}
+          onChange={set("company")}
+          placeholder="Company"
+          className={fieldCls}
+        />
+        <input
+          type="number"
+          min="0"
+          step="any"
+          value={f.price}
+          onChange={set("price")}
+          placeholder="Price *"
+          className={fieldCls}
+        />
+        <input
+          value={f.formula}
+          onChange={set("formula")}
+          placeholder="Formula"
+          className={fieldCls}
+        />
+        <input
+          type="number"
+          min="0"
+          value={f.stock}
+          onChange={set("stock")}
+          placeholder="Opening stock"
+          className={fieldCls}
+        />
+      </div>
+
+      <div className="mt-3 flex items-center justify-between">
+        <p className="text-xs text-stone-500">
+          * zaroori hai. Opening stock khali chhorein to stock baad mein "Add
+          stock" se bhar sakte hain.
+        </p>
+        <button
+          type="submit"
+          disabled={!valid}
+          className="flex items-center gap-1 rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-stone-300"
+        >
+          <Plus size={16} /> Add medicine
+        </button>
+      </div>
+    </form>
   );
 }
 
-export default function StockView({ medicines, lowStock, onUpdateStock }) {
+// Naya maal aane par: quantity likhein, Add dabayein, mojooda stock mein jama ho jati hai
+function ReceiveControl({ med, onCommit }) {
+  const [text, setText] = useState("");
+
+  const add = () => {
+    const n = Math.round(Number(text));
+    if (!Number.isFinite(n) || n <= 0) return;
+    onCommit((med.stock ?? 0) + n);
+    setText("");
+  };
+
+  return (
+    <div className="flex items-center justify-center gap-1">
+      <input
+        type="number"
+        min="1"
+        value={text}
+        placeholder="Qty"
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && add()}
+        aria-label={`Add stock to ${med.name}`}
+        className="w-20 rounded-md border border-stone-300 px-2 py-1.5 text-center outline-none focus:border-emerald-600"
+      />
+      <button
+        onClick={add}
+        disabled={!(Number(text) > 0)}
+        className="flex items-center gap-1 rounded-md bg-emerald-700 px-2.5 py-1.5 text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-stone-300"
+      >
+        <PackagePlus size={14} /> Add
+      </button>
+    </div>
+  );
+}
+
+export default function StockView({
+  medicines,
+  lowStock,
+  onUpdateStock,
+  onAddMedicine,
+}) {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("all"); // all | low | out | untracked
+  const [showForm, setShowForm] = useState(false);
 
   const counts = useMemo(() => {
     const c = { all: medicines.length, low: 0, out: 0, untracked: 0 };
@@ -86,7 +205,7 @@ export default function StockView({ medicines, lowStock, onUpdateStock }) {
     const terms = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
     let list = medicines.filter((m) => {
       if (filter !== "all" && statusOf(m, lowStock) !== filter) return false;
-      const hay = `${m.name} ${m.company}`.toLowerCase();
+      const hay = `${m.name} ${m.company} ${m.formula || ""}`.toLowerCase();
       return terms.every((t) => hay.includes(t));
     });
     // Low / out filter mein sab se kam stock wali medicine pehle
@@ -99,7 +218,7 @@ export default function StockView({ medicines, lowStock, onUpdateStock }) {
   const filters = [
     { id: "all", label: "All" },
     { id: "low", label: "Low" },
-    { id: "out", label: "Out of stock" },
+    { id: "out", label: "Out" },
     { id: "untracked", label: "Not tracked" },
   ];
 
@@ -121,6 +240,13 @@ export default function StockView({ medicines, lowStock, onUpdateStock }) {
         />
       </div>
 
+      {showForm && (
+        <NewMedicineForm
+          onAdd={onAddMedicine}
+          onClose={() => setShowForm(false)}
+        />
+      )}
+
       <div className="flex items-center gap-3">
         <div className="relative flex-1">
           <Search
@@ -130,7 +256,7 @@ export default function StockView({ medicines, lowStock, onUpdateStock }) {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search medicine or company"
+            placeholder="Search medicine, company or formula"
             className="w-full rounded-lg border border-stone-300 bg-white py-3 pl-10 pr-4 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20"
           />
         </div>
@@ -149,42 +275,75 @@ export default function StockView({ medicines, lowStock, onUpdateStock }) {
             </button>
           ))}
         </div>
+        {!showForm && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-1 whitespace-nowrap rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-800"
+          >
+            <Plus size={16} /> New medicine
+          </button>
+        )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-stone-300 bg-white">
+      <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-stone-300 bg-white">
         {rows.length === 0 ? (
           <p className="p-6 text-stone-500">
             Is filter ya search mein koi medicine nahi mili.
           </p>
         ) : (
           <table className="w-full text-left text-sm">
-            <thead className="sticky top-0 bg-stone-50 text-stone-500">
+            <thead className="sticky top-0 z-10 bg-stone-50 text-stone-500">
               <tr>
                 <th className="px-4 py-2 font-medium">Medicine</th>
-                <th className="px-4 py-2 text-center font-medium">Price</th>
-                <th className="px-4 py-2 text-center font-medium">Stock</th>
-                <th className="px-4 py-2 text-center font-medium">Status</th>
+                <th className="px-3 py-2 text-center font-medium">Price</th>
+                <th className="px-3 py-2 text-center font-medium">Stock</th>
+                <th className="px-3 py-2 text-center font-medium">Add stock</th>
+                <th className="px-3 py-2 text-center font-medium">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-200">
               {rows.slice(0, SHOW_LIMIT).map((m) => {
-                const badge = BADGE[statusOf(m, lowStock)];
+                const status = statusOf(m, lowStock);
+                const badge = BADGE[status];
                 return (
                   <tr key={m.id}>
                     <td className="px-4 py-2.5">
                       <p className="font-medium">{m.name}</p>
-                      <p className="text-stone-500">{m.company}</p>
+                      <p className="text-stone-500">
+                        {m.company}
+                        {m.formula && (
+                          <span className="ml-2 italic">{m.formula}</span>
+                        )}
+                      </p>
                     </td>
-                    <td className="px-4 py-2.5 text-center tabular-nums">
+                    <td className="px-3 py-2.5 text-center tabular-nums">
                       Rs {money(m.price)}
                     </td>
-                    <td className="px-4 py-2.5 text-center">
-                      <StockInput
-                        value={m.stock}
+
+                    {/* Stock: sirf dekhne ke liye, edit nahi hota */}
+                    <td className="px-3 py-2.5 text-center">
+                      <span
+                        className={`text-base font-semibold tabular-nums ${
+                          status === "out"
+                            ? "text-red-600"
+                            : status === "low"
+                              ? "text-amber-600"
+                              : status === "untracked"
+                                ? "text-stone-400"
+                                : "text-stone-900"
+                        }`}
+                      >
+                        {m.stock == null ? "-" : m.stock}
+                      </span>
+                    </td>
+
+                    <td className="px-3 py-2.5">
+                      <ReceiveControl
+                        med={m}
                         onCommit={(n) => onUpdateStock(m, n)}
                       />
                     </td>
-                    <td className="px-4 py-2.5 text-center">
+                    <td className="px-3 py-2.5 text-center">
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-medium ${badge.cls}`}
                       >
@@ -206,8 +365,9 @@ export default function StockView({ medicines, lowStock, onUpdateStock }) {
       </div>
 
       <p className="text-xs text-stone-500">
-        Stock badalne ke liye number likh kar Enter dabayein. Khali chhorne par
-        us medicine ka stock track nahi hoga.
+        Stock column sirf dekhne ke liye hai. Naya maal aane par "Add stock"
+        mein quantity likhein aur Add dabayein. Sale hone par stock khud kam ho
+        jata hai. Nayi medicine ke liye "New medicine" dabayein.
       </p>
     </>
   );

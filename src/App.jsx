@@ -36,12 +36,54 @@ import DataView from "./components/DataView";
 
 // Pehli dafa app chalane par ye sample data dikhta hai. Excel import ke baad replace ho jata hai.
 const SAMPLE_MEDICINES = [
-  { id: 1, name: "Panadol 500mg", company: "GSK", price: 25, stock: 100 },
-  { id: 2, name: "Brufen 400mg", company: "Abbott", price: 40, stock: 60 },
-  { id: 3, name: "Augmentin 625mg", company: "GSK", price: 380, stock: 8 },
-  { id: 4, name: "Risek 20mg", company: "Getz", price: 210, stock: 0 },
-  { id: 5, name: "Disprin", company: "Reckitt", price: 12, stock: null },
-  { id: 6, name: "Arinac Forte", company: "Abbott", price: 55, stock: 40 },
+  {
+    id: 1,
+    name: "Panadol 500mg",
+    company: "GSK",
+    price: 25,
+    formula: "Paracetamol",
+    stock: 100,
+  },
+  {
+    id: 2,
+    name: "Brufen 400mg",
+    company: "Abbott",
+    price: 40,
+    formula: "Ibuprofen",
+    stock: 60,
+  },
+  {
+    id: 3,
+    name: "Augmentin 625mg",
+    company: "GSK",
+    price: 380,
+    formula: "Amoxicillin, Clavulanic Acid",
+    stock: 8,
+  },
+  {
+    id: 4,
+    name: "Risek 20mg",
+    company: "Getz",
+    price: 210,
+    formula: "Omeprazole",
+    stock: 0,
+  },
+  {
+    id: 5,
+    name: "Disprin",
+    company: "Reckitt",
+    price: 12,
+    formula: "Aspirin",
+    stock: null,
+  },
+  {
+    id: 6,
+    name: "Arinac Forte",
+    company: "Abbott",
+    price: 55,
+    formula: "Ibuprofen, Pseudoephedrine",
+    stock: 40,
+  },
 ];
 
 const LOW_STOCK = 10;
@@ -106,12 +148,12 @@ export default function App() {
     }, 0);
   };
 
-  // ---- Search (multi word: "pan 500") ----
+  // ---- Search: name, company ya formula (multi word: "para 500") ----
   const results = useMemo(() => {
     const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
     if (terms.length === 0) return medicines;
     return medicines.filter((m) => {
-      const hay = `${m.name} ${m.company}`.toLowerCase();
+      const hay = `${m.name} ${m.company} ${m.formula || ""}`.toLowerCase();
       return terms.every((t) => hay.includes(t));
     });
   }, [query, medicines]);
@@ -404,7 +446,7 @@ export default function App() {
                     setQuery("");
                   }
                 }}
-                placeholder="Search medicine or company (Enter adds the first result)"
+                placeholder="Search by medicine, company or formula (Enter adds the first result)"
                 className="w-full rounded-lg border border-stone-300 bg-white py-3 pl-10 pr-4 text-lg outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20"
               />
             </div>
@@ -431,30 +473,29 @@ export default function App() {
                           <p className="font-medium">{med.name}</p>
                           <p className="text-sm text-stone-500">
                             {med.company}
-                          </p>
-                          {/* Stock: har medicine ke neeche */}
-                          <p
-                            className={`text-sm ${
-                              soldOut
-                                ? "font-medium text-red-600"
-                                : low
-                                  ? "font-medium text-amber-600"
-                                  : tracked
-                                    ? "text-emerald-700"
-                                    : "text-stone-400"
-                            }`}
-                          >
-                            {!tracked
-                              ? "Stock: not tracked"
-                              : soldOut
-                                ? "Out of stock"
-                                : `Stock: ${remaining}`}
-                            {tracked && inBill > 0 && (
-                              <span className="ml-2 font-normal text-stone-500">
-                                ({inBill} in bill)
-                              </span>
+                            {med.formula && (
+                              <span className="ml-2 italic">{med.formula}</span>
                             )}
                           </p>
+                          {/* Stock sirf tab dikhta hai jab bhara ho */}
+                          {tracked && (
+                            <p
+                              className={`text-sm ${
+                                soldOut
+                                  ? "font-medium text-red-600"
+                                  : low
+                                    ? "font-medium text-amber-600"
+                                    : "text-emerald-700"
+                              }`}
+                            >
+                              {soldOut ? "Out of stock" : `Stock: ${remaining}`}
+                              {inBill > 0 && (
+                                <span className="ml-2 font-normal text-stone-500">
+                                  ({inBill} in bill)
+                                </span>
+                              )}
+                            </p>
+                          )}
                         </div>
                         <span className="w-24 text-right tabular-nums">
                           Rs {money(med.price)}

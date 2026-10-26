@@ -15,6 +15,15 @@ const ALIASES = {
   company: ["company", "manufacturer", "brand", "mfg", "supplier"],
   price: ["price", "rate", "mrp", "sale price", "unit price", "retail price"],
   stock: ["stock", "qty", "quantity", "available", "in stock", "balance"],
+  formula: [
+    "formula",
+    "generic",
+    "generic name",
+    "salt",
+    "composition",
+    "ingredient",
+    "active ingredient",
+  ],
 };
 
 const norm = (s) =>
@@ -41,6 +50,7 @@ export async function parseMedicineFile(file) {
     company: pick("company"),
     price: pick("price"),
     stock: pick("stock"),
+    formula: pick("formula"),
   };
 
   if (!cols.name || !cols.price) {
@@ -68,6 +78,7 @@ export async function parseMedicineFile(file) {
       name,
       company: cols.company ? String(row[cols.company]).trim() : "",
       price,
+      formula: cols.formula ? String(row[cols.formula]).trim() : "",
       // stock column na ho ya khali ho to stock track nahi hoga
       stock: Number.isFinite(stockNum)
         ? Math.max(0, Math.round(stockNum))
