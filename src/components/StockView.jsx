@@ -7,6 +7,8 @@ import {
   PackagePlus,
   Plus,
   X,
+  Pencil,
+  Check,
 } from "lucide-react";
 
 const money = (n) => Number(n).toLocaleString("en-US");
@@ -30,7 +32,14 @@ const BADGE = {
 
 const fieldCls =
   "w-full rounded-md border border-stone-300 px-3 py-2 text-sm outline-none focus:border-emerald-600";
-const EMPTY_FORM = { name: "", company: "", price: "", formula: "", stock: "" };
+
+const EMPTY_FORM = {
+  name: "",
+  company: "",
+  price: "",
+  formula: "",
+  stock: "",
+};
 
 function Stat({ label, value, icon: Icon, tone = "text-stone-900" }) {
   return (
@@ -43,31 +52,37 @@ function Stat({ label, value, icon: Icon, tone = "text-stone-900" }) {
   );
 }
 
-// Nayi medicine ka form. Add hone ke baad form khula rehta hai taake agli medicine bhi likh sakein.
+// Nayi medicine add karne ka form
 function NewMedicineForm({ onAdd, onClose }) {
   const [f, setF] = useState(EMPTY_FORM);
   const nameRef = useRef(null);
 
   const set = (key) => (e) => setF((p) => ({ ...p, [key]: e.target.value }));
+
   const priceNum = Number(f.price);
+
   const valid =
     f.name.trim() !== "" &&
     f.price !== "" &&
     Number.isFinite(priceNum) &&
-    priceNum >= 0;
+    priceNum >= 0 &&
+    (f.stock.trim() === "" ||
+      (Number.isFinite(Number(f.stock)) && Number(f.stock) >= 0));
 
   const submit = (e) => {
     e.preventDefault();
     if (!valid) return;
-    const stockNum =
-      f.stock.trim() === "" ? null : Math.max(0, Math.round(Number(f.stock)));
+
+    const stockNum = f.stock.trim() === "" ? null : Math.round(Number(f.stock));
+
     const ok = onAdd({
       name: f.name.trim(),
       company: f.company.trim(),
       price: priceNum,
       formula: f.formula.trim(),
-      stock: Number.isFinite(stockNum) ? stockNum : null,
+      stock: stockNum,
     });
+
     if (ok) {
       setF(EMPTY_FORM);
       nameRef.current?.focus();
@@ -91,14 +106,15 @@ function NewMedicineForm({ onAdd, onClose }) {
         </button>
       </div>
 
-      <div className="grid grid-cols-6 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
         <input
           ref={nameRef}
           autoFocus
           value={f.name}
           onChange={set("name")}
           placeholder="Name (strength ke saath) *"
-          className={`${fieldCls} col-span-2`}
+          className={fieldCls}
+          required
         />
         <input
           value={f.company}
@@ -114,6 +130,7 @@ function NewMedicineForm({ onAdd, onClose }) {
           onChange={set("price")}
           placeholder="Price *"
           className={fieldCls}
+          required
         />
         <input
           value={f.formula}
@@ -124,6 +141,7 @@ function NewMedicineForm({ onAdd, onClose }) {
         <input
           type="number"
           min="0"
+          step="1"
           value={f.stock}
           onChange={set("stock")}
           placeholder="Opening stock"
@@ -131,10 +149,10 @@ function NewMedicineForm({ onAdd, onClose }) {
         />
       </div>
 
-      <div className="mt-3 flex items-center justify-between">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-stone-500">
-          * zaroori hai. Opening stock khali chhorein to stock baad mein "Add
-          stock" se bhar sakte hain.
+          * Zaroori hai. Opening stock khali chhorein to baad mein Add stock se
+          bhar sakte hain.
         </p>
         <button
           type="submit"
@@ -148,13 +166,103 @@ function NewMedicineForm({ onAdd, onClose }) {
   );
 }
 
-// Naya maal aane par: quantity likhein, Add dabayein, mojooda stock mein jama ho jati hai
+// Price edit control
+function PriceEditor({ med, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [price, setPrice] = useState(String(med.price));
+
+  const startEditing = () => {
+    setPrice(String(med.price));
+    setEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setPrice(String(med.price));
+    setEditing(false);
+  };
+
+  const save = () => {
+    if (price.trim() === "") return;
+
+    const nextPrice = Number(price);
+
+    if (!Number.isFinite(nextPrice) || nextPrice < 0) return;
+
+    onSave(med, nextPrice);
+    setEditing(false);
+  };
+
+  if (!editing) {
+    return (
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        <span className="whitespace-nowrap font-medium tabular-nums">
+          Rs {money(med.price)}
+        </span>
+        <button
+          type="button"
+          onClick={startEditing}
+          title={`Edit price for ${med.name}`}
+          aria-label={`Edit price for ${med.name}`}
+          className="inline-flex items-center gap-1 rounded-md border border-stone-300 px-2 py-1 text-xs hover:bg-stone-100"
+        >
+          <Pencil size={13} /> Edit
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-w-36 flex-col items-center gap-2">
+      <input
+        type="number"
+        min="0"
+        step="any"
+        autoFocus
+        value={price}
+        onChange={(e) => setPrice(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") save();
+          if (e.key === "Escape") cancelEditing();
+        }}
+        aria-label={`New price for ${med.name}`}
+        className="w-28 rounded-md border border-emerald-500 px-2 py-1.5 text-center outline-none focus:ring-2 focus:ring-emerald-500/20"
+      />
+
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={save}
+          disabled={
+            price.trim() === "" ||
+            !Number.isFinite(Number(price)) ||
+            Number(price) < 0
+          }
+          className="inline-flex items-center gap-1 rounded-md bg-emerald-700 px-2 py-1 text-xs text-white hover:bg-emerald-800 disabled:bg-stone-300"
+        >
+          <Check size={13} /> Save
+        </button>
+
+        <button
+          type="button"
+          onClick={cancelEditing}
+          className="inline-flex items-center gap-1 rounded-md border border-stone-300 px-2 py-1 text-xs hover:bg-stone-100"
+        >
+          <X size={13} /> Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Naya maal aane par existing stock mein quantity add hoti hai
 function ReceiveControl({ med, onCommit }) {
   const [text, setText] = useState("");
 
   const add = () => {
     const n = Math.round(Number(text));
+
     if (!Number.isFinite(n) || n <= 0) return;
+
     onCommit((med.stock ?? 0) + n);
     setText("");
   };
@@ -164,6 +272,7 @@ function ReceiveControl({ med, onCommit }) {
       <input
         type="number"
         min="1"
+        step="1"
         value={text}
         placeholder="Qty"
         onChange={(e) => setText(e.target.value)}
@@ -172,6 +281,7 @@ function ReceiveControl({ med, onCommit }) {
         className="w-20 rounded-md border border-stone-300 px-2 py-1.5 text-center outline-none focus:border-emerald-600"
       />
       <button
+        type="button"
         onClick={add}
         disabled={!(Number(text) > 0)}
         className="flex items-center gap-1 rounded-md bg-emerald-700 px-2.5 py-1.5 text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-stone-300"
@@ -186,32 +296,41 @@ export default function StockView({
   medicines,
   lowStock,
   onUpdateStock,
+  onUpdatePrice,
   onAddMedicine,
 }) {
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState("all"); // all | low | out | untracked
+  const [filter, setFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
 
   const counts = useMemo(() => {
     const c = { all: medicines.length, low: 0, out: 0, untracked: 0 };
+
     medicines.forEach((m) => {
       const s = statusOf(m, lowStock);
       if (s !== "ok") c[s]++;
     });
+
     return c;
   }, [medicines, lowStock]);
 
   const rows = useMemo(() => {
     const terms = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+
     let list = medicines.filter((m) => {
-      if (filter !== "all" && statusOf(m, lowStock) !== filter) return false;
+      if (filter !== "all" && statusOf(m, lowStock) !== filter) {
+        return false;
+      }
+
       const hay = `${m.name} ${m.company} ${m.formula || ""}`.toLowerCase();
+
       return terms.every((t) => hay.includes(t));
     });
-    // Low / out filter mein sab se kam stock wali medicine pehle
+
     if (filter === "low" || filter === "out") {
       list = [...list].sort((a, b) => a.stock - b.stock);
     }
+
     return list;
   }, [medicines, q, filter, lowStock]);
 
@@ -224,14 +343,16 @@ export default function StockView({
 
   return (
     <>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Stat label="Medicines" value={counts.all} icon={Boxes} />
+
         <Stat
           label={`Low stock (${lowStock} ya kam)`}
           value={counts.low}
           icon={AlertTriangle}
           tone={counts.low ? "text-amber-600" : undefined}
         />
+
         <Stat
           label="Out of stock"
           value={counts.out}
@@ -247,8 +368,8 @@ export default function StockView({
         />
       )}
 
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="relative min-w-0 flex-1">
           <Search
             className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400"
             size={18}
@@ -260,10 +381,12 @@ export default function StockView({
             className="w-full rounded-lg border border-stone-300 bg-white py-3 pl-10 pr-4 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20"
           />
         </div>
-        <div className="flex overflow-hidden rounded-lg border border-stone-300 text-sm">
+
+        <div className="flex flex-wrap overflow-hidden rounded-lg border border-stone-300 text-sm">
           {filters.map((f) => (
             <button
               key={f.id}
+              type="button"
               onClick={() => setFilter(f.id)}
               className={`px-3 py-2.5 ${
                 filter === f.id
@@ -275,10 +398,12 @@ export default function StockView({
             </button>
           ))}
         </div>
+
         {!showForm && (
           <button
+            type="button"
             onClick={() => setShowForm(true)}
-            className="flex items-center gap-1 whitespace-nowrap rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-800"
+            className="flex items-center justify-center gap-1 whitespace-nowrap rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-800"
           >
             <Plus size={16} /> New medicine
           </button>
@@ -301,10 +426,12 @@ export default function StockView({
                 <th className="px-3 py-2 text-center font-medium">Status</th>
               </tr>
             </thead>
+
             <tbody className="divide-y divide-stone-200">
               {rows.slice(0, SHOW_LIMIT).map((m) => {
                 const status = statusOf(m, lowStock);
                 const badge = BADGE[status];
+
                 return (
                   <tr key={m.id}>
                     <td className="px-4 py-2.5">
@@ -316,11 +443,11 @@ export default function StockView({
                         )}
                       </p>
                     </td>
-                    <td className="px-3 py-2.5 text-center tabular-nums">
-                      Rs {money(m.price)}
+
+                    <td className="px-3 py-2.5 text-center">
+                      <PriceEditor med={m} onSave={onUpdatePrice} />
                     </td>
 
-                    {/* Stock: sirf dekhne ke liye, edit nahi hota */}
                     <td className="px-3 py-2.5 text-center">
                       <span
                         className={`text-base font-semibold tabular-nums ${
@@ -343,6 +470,7 @@ export default function StockView({
                         onCommit={(n) => onUpdateStock(m, n)}
                       />
                     </td>
+
                     <td className="px-3 py-2.5 text-center">
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-medium ${badge.cls}`}
@@ -356,6 +484,7 @@ export default function StockView({
             </tbody>
           </table>
         )}
+
         {rows.length > SHOW_LIMIT && (
           <p className="border-t border-stone-200 px-4 py-3 text-sm text-stone-500">
             Pehle {SHOW_LIMIT} dikh rahe hain ({rows.length} mein se). Search se
@@ -365,9 +494,10 @@ export default function StockView({
       </div>
 
       <p className="text-xs text-stone-500">
-        Stock column sirf dekhne ke liye hai. Naya maal aane par "Add stock"
-        mein quantity likhein aur Add dabayein. Sale hone par stock khud kam ho
-        jata hai. Nayi medicine ke liye "New medicine" dabayein.
+        Price badalne ke liye Edit dabayein aur Save karein. Yeh sirf medicine
+        ki current price update karta hai; pehle se saved bills ki prices nahi
+        badalni chahiye. Naya maal aane par Add stock use karein. Sale hone par
+        stock khud kam hota hai.
       </p>
     </>
   );
